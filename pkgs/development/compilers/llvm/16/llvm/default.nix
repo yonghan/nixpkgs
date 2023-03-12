@@ -21,6 +21,7 @@
 , sysctl
 , buildLlvmTools
 , debugVersion ? false
+, sanitizer ? "Address"
 , doCheck ? (!stdenv.isx86_32 /* TODO: why */) && (!stdenv.hostPlatform.isMusl)
   && (stdenv.hostPlatform == stdenv.buildPlatform)
 , enableManpages ? false
@@ -236,12 +237,6 @@ in stdenv.mkDerivation (rec {
     rm test/tools/gold/X86/split-dwarf.ll
     rm test/tools/llvm-dwarfdump/X86/prettyprint_types.s
     rm test/tools/llvm-dwarfdump/X86/simplified-template-names.s
-
-    # !!! Note: these tests are removed in LLVM 16.
-    #
-    # See here for context: https://github.com/NixOS/nixpkgs/pull/194634#discussion_r999790443
-    rm test/CodeGen/RISCV/rv32zbp.ll
-    rm test/CodeGen/RISCV/rv64zbp.ll
   '' + optionalString (stdenv.hostPlatform.system == "armv6l-linux") ''
     # Seems to require certain floating point hardware (NEON?)
     rm test/ExecutionEngine/frem.ll
@@ -330,6 +325,8 @@ in stdenv.mkDerivation (rec {
     "-DSPHINX_WARNINGS_AS_ERRORS=OFF"
   ] ++ optionals (enableGoldPlugin) [
     "-DLLVM_BINUTILS_INCDIR=${libbfd.dev}/include"
+  ] ++ optionals (sanitizer != null) [
+    "-DLLVM_USE_SANITIZER=${sanitizer}" # Possible values: Address, Memory, MemoryWithOrigins, Undefined, Thread, DataFlow, and Address;Undefined
   ] ++ optionals isDarwin [
     "-DLLVM_ENABLE_LIBCXX=ON"
     "-DCAN_TARGET_i386=false"
