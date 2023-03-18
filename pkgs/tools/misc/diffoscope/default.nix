@@ -3,7 +3,8 @@
 , e2fsprogs, enjarify, file, findutils, fontforge-fonttools, ffmpeg, fpc, gettext, ghc, ghostscriptX, giflib, gnumeric, gnupg, gnutar
 , gzip, html2text, hdf5, imagemagick, jdk, libarchive, libcaca, llvm, lz4, mono, ocaml, oggvideotools, openssh, openssl, pdftk, pgpdump, poppler_utils, procyon, qemu, R
 , radare2, sng, sqlite, squashfsTools, tcpdump, ubootTools, odt2txt, unzip, wabt, xmlbeans, xxd, xz, zip, zstd
-, enableBloat ? false
+, enableBloat ? !stdenv.isDarwin
+, enableUnfree ? false
 # updater only
 , writeScript
 }:
@@ -54,8 +55,9 @@ python3Packages.buildPythonApplication rec {
       python-magic progressbar33 pypdf2 tlsh
     ])
     ++ lib.optionals stdenv.isLinux [ python3Packages.pyxattr python3Packages.rpm acl cdrkit dtc ]
+    ++ lib.optionals (enableBloat && enableUnfree) [ apktool ]
     ++ lib.optionals enableBloat ([
-      abootimg apksigcopier apksigner apktool cbfstool colord enjarify ffmpeg fpc ghc ghostscriptX giflib gnupg gnumeric
+      abootimg apksigcopier apksigner cbfstool colord enjarify ffmpeg fpc ghc ghostscriptX giflib gnupg gnumeric
       hdf5 imagemagick libcaca llvm jdk mono ocaml odt2txt oggvideotools openssh pdftk poppler_utils procyon qemu R tcpdump ubootTools wabt radare2 xmlbeans
     ] ++ (with python3Packages; [ androguard binwalk guestfs h5py pdfminer-six ]));
 
