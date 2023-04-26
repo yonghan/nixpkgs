@@ -169,18 +169,21 @@ let
       # Create a directory for exchanging data with the VM.
       mkdir -p "$TMPDIR/xchg"
 
-      ${lib.optionalString cfg.useBootLoader
+      ${lib.optionalString cfg.useEFIBoot
       ''
+        # Expose EFI variables, it's useful even when we are not using a bootloader (!).
+        # We might always be interested in a UEFI environment even if we directboot, hence
+        # no guard against `useBootLoader`.
         NIX_EFI_VARS=$(readlink -f "''${NIX_EFI_VARS:-${config.system.name}-efi-vars.fd}")
-
-        ${lib.optionalString cfg.useEFIBoot
-        ''
-          # VM needs writable EFI vars
-          if ! test -e "$NIX_EFI_VARS"; then
-            cp ${systemImage}/efi-vars.fd "$NIX_EFI_VARS"
-            chmod 0644 "$NIX_EFI_VARS"
-          fi
-        ''}
+        # VM needs writable EFI vars
+        if ! test -e "$NIX_EFI_VARS"; then
+          ${if cfg.useBootLoader then
+            ''cp ${systemImage}/efi-vars.fd "$NIX_EFI_VARS"''
+            else
+            ''cp ${cfg.efi.variables} "$NIX_EFI_VARS"''
+          }
+          chmod 0644 "$NIX_EFI_VARS"
+        fi
       ''}
 
       cd "$TMPDIR"
