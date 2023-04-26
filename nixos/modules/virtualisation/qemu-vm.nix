@@ -1069,7 +1069,7 @@ in
       }) cfg.emptyDiskImages)
     ];
 
-    fileSystems = mkVMOverride cfg.fileSystems;
+    fileSystems = lib.mapAttrs (n: v: mkVMOverride v) cfg.fileSystems;
 
     # Mount the host filesystem via 9P, and bind-mount the Nix store
     # of the host into our own filesystem.  We use mkVMOverride to
