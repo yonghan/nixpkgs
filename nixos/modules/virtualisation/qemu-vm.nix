@@ -258,7 +258,8 @@ let
         if cfg.useEFIBoot then "efi_bootloading_with_default_fs"
         else "legacy_bootloading_with_default_fs"
       else
-        "direct_boot_with_default_fs"
+        if cfg.directBoot then "direct_boot_with_default_fs"
+        else "custom"
     else
       "custom";
   suggestedRootDevice = {
@@ -734,6 +735,24 @@ in
         '';
       };
 
+    virtualisation.directBoot =
+      mkOption {
+        type = types.bool;
+        default = !cfg.useBootLoader;
+        defaultText = "!cfg.useBootLoader";
+        description =
+          lib.mdDoc ''
+            If enabled, the virtual machine will direct boot the system
+            by passing the kernel, initrd and relevant parameters to QEMU.
+
+            If you want to use a bootloader, use `virtualisation.useBootLoader`,
+            if you want to test netboot, you might be interested into disabling this.
+
+            This is enabled by default if you don't enable bootloaders.
+            Read more about this feature: <https://qemu-project.gitlab.io/qemu/system/linuxboot.html>.
+          '';
+      };
+
     virtualisation.useBootLoader =
       mkOption {
         type = types.bool;
@@ -885,6 +904,11 @@ in
           Otherwise, we recommend
 
             ${opt.writableStore} = false;
+            ''
+      ++ optional (cfg.directBoot && cfg.useBootLoader)
+        ''
+          You enabled direct boot and a bootloader, QEMU will not boot your bootloader, rendering
+          `useBootLoader` useless. You might want to disable one of those options.
         '';
 
     # In UEFI boot, we use a EFI-only partition table layout, thus GRUB will fail when trying to install
@@ -1008,7 +1032,7 @@ in
         alphaNumericChars = lowerChars ++ upperChars ++ (map toString (range 0 9));
         # Replace all non-alphanumeric characters with underscores
         sanitizeShellIdent = s: concatMapStrings (c: if builtins.elem c alphaNumericChars then c else "_") (stringToCharacters s);
-      in mkIf (!cfg.useBootLoader) [
+      in mkIf cfg.directBoot [
         "-kernel \${NIXPKGS_QEMU_KERNEL_${sanitizeShellIdent config.system.name}:-${config.system.build.toplevel}/kernel}"
         "-initrd ${config.system.build.toplevel}/initrd"
         ''-append "$(cat ${config.system.build.toplevel}/kernel-params) init=${config.system.build.toplevel}/init regInfo=${regInfo}/registration ${consoles} $QEMU_KERNEL_PARAMS"''
