@@ -205,6 +205,14 @@ in {
       bios = uefiBinary;
     };
 
+    directNetboot = makeTest {
+      name = "directboot-netboot";
+      nodes.machine = {
+        imports = [ ../modules/installer/netboot/netboot-minimal.nix ];
+      };
+      testScript = "machine.fail('stat /dev/vda')";
+    };
+
     uefiNetboot = makeNetbootTest "uefi" {
       virtualisation.useEFIBoot = true;
       # TODO: an ideal test would be to try netbooting through another machine with DHCP and proper configuration.
