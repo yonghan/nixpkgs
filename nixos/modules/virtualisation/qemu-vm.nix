@@ -796,6 +796,42 @@ in
       };
     };
 
+    virtualisation.tpm = {
+      enable = mkEnableOption ''a TPM device in the virtual machine with a driver, using swtpm.
+
+        To use it in a `test_script`, you can use `machine.tpm` which is a TPM driver offering some basic
+        facilities to manipulate the TPM socket on the host.
+      '';
+
+      package = mkPackageOptionMD cfg.host.pkgs "swtpm" { };
+
+      socketPath = mkOption {
+        type = types.str;
+        default = "/tmp/swtpm-sock";
+        description = lib.mdDoc "swtpm socket path on the host";
+      };
+
+      deviceModel = mkOption {
+        type = types.str;
+        default = ({
+          "i686-linux" = "tpm-tis";
+          "x86_64-linux" = "tpm-tis";
+          "ppc64-linux" = "tpm-spapr";
+          "armv7-linux" = "tpm-tis-device";
+          "aarch64-linux" = "tpm-tis-device";
+        }.${pkgs.hostPlatform.system});
+        defaultText = ''({
+          "i686-linux" = "tpm-tis";
+          "x86_64-linux" = "tpm-tis";
+          "ppc64-linux" = "tpm-spapr";
+          "armv7-linux" = "tpm-tis-device";
+          "aarch64-linux" = "tpm-tis-device";
+        }.''${pkgs.hostPlatform.system})'';
+        example = "tpm-tis-device";
+        description = lib.mdDoc "QEMU device model for the TPM, uses the appropriate default based on the system and the package passed.";
+      };
+    };
+
     virtualisation.useDefaultFilesystems =
       mkOption {
         type = types.bool;
@@ -946,7 +982,8 @@ in
 
     boot.initrd.availableKernelModules =
       optional cfg.writableStore "overlay"
-      ++ optional (cfg.qemu.diskInterface == "scsi") "sym53c8xx";
+      ++ optional (cfg.qemu.diskInterface == "scsi") "sym53c8xx"
+      ++ optional (cfg.tpm.enable) "tpm_tis";
 
     virtualisation.additionalPaths = [ config.system.build.toplevel ];
 
@@ -1011,6 +1048,11 @@ in
       ])
       (mkIf (!cfg.graphics) [
         "-nographic"
+      ])
+      (mkIf (cfg.tpm.enable) [
+        "-chardev socket,id=chrtpm,path=${cfg.tpm.socketPath}"
+        "-tpmdev emulator,id=tpm_dev_0,chardev=chrtpm"
+        "-device ${cfg.tpm.deviceModel},tpmdev=tpm_dev_0"
       ])
     ];
 
