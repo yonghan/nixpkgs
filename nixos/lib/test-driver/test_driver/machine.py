@@ -17,6 +17,7 @@ import threading
 import time
 
 from test_driver.logger import rootlog
+from test_driver.tpm import Tpm
 
 CHAR_TO_KEY = {
     "A": "shift-a",
@@ -318,6 +319,8 @@ class Machine:
     shell: Optional[socket.socket]
     serial_thread: Optional[threading.Thread]
 
+    tpm: Tpm | None
+
     booted: bool
     connected: bool
     # Store last serial console lines for use
@@ -336,6 +339,7 @@ class Machine:
         name: str = "machine",
         keep_vm_state: bool = False,
         callbacks: Optional[List[Callable]] = None,
+        tpm: Optional[Tpm] = None,
     ) -> None:
         self.out_dir = out_dir
         self.tmp_dir = tmp_dir
@@ -343,6 +347,7 @@ class Machine:
         self.name = name
         self.start_command = start_command
         self.callbacks = callbacks if callbacks is not None else []
+        self.tpm = tpm
 
         # set up directories
         self.shared_dir = self.tmp_dir / "shared-xchg"

@@ -1,12 +1,23 @@
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Union, Optional, Callable, ContextManager
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Union,
+    Optional,
+    Callable,
+    ContextManager,
+    Tuple,
+)
 import os
 import tempfile
 
 from test_driver.logger import rootlog
 from test_driver.machine import Machine, NixStartScript, retry
 from test_driver.vlan import VLan
+from test_driver.tpm import Tpm
 from test_driver.polling_condition import PollingCondition
 
 
@@ -35,18 +46,21 @@ class Driver:
     tests: str
     vlans: List[VLan]
     machines: List[Machine]
+    tpms: Dict[str, Tpm]
     polling_conditions: List[PollingCondition]
 
     def __init__(
         self,
         start_scripts: List[str],
         vlans: List[int],
+        tpms: List[Dict[str, str]],
         tests: str,
         out_dir: Path,
         keep_vm_state: bool = False,
     ):
         self.tests = tests
         self.out_dir = out_dir
+        self.polling_conditions = []
 
         tmp_dir = get_tmp_dir()
 
@@ -54,11 +68,21 @@ class Driver:
             vlans = list(set(vlans))
             self.vlans = [VLan(nr, tmp_dir) for nr in vlans]
 
+        with rootlog.nested("start all TPMs"):
+            self.tpms = {
+                tpm_data["machine_name"]: Tpm(
+                    tpm_data["swtpm_binary_path"], tpm_data["socket_path"]
+                )
+                for tpm_data in tpms
+            }
+            for tpm in self.tpms.values():
+                tpm.start()
+                # Monitor TPMs for unexpected crashes.
+                self.polling_conditions.append(PollingCondition(tpm.check))
+
         def cmd(scripts: List[str]) -> Iterator[NixStartScript]:
             for s in scripts:
                 yield NixStartScript(s)
-
-        self.polling_conditions = []
 
         self.machines = [
             Machine(
@@ -68,6 +92,7 @@ class Driver:
                 tmp_dir=tmp_dir,
                 callbacks=[self.check_polling_conditions],
                 out_dir=self.out_dir,
+                tpm=self.tpms.get(cmd.machine_name),
             )
             for cmd in cmd(start_scripts)
         ]
@@ -111,13 +136,17 @@ class Driver:
             serial_stdout_off=self.serial_stdout_off,
             serial_stdout_on=self.serial_stdout_on,
             polling_condition=self.polling_condition,
-            Machine=Machine,  # for typing
+            # for typing
+            Machine=Machine,
+            Tpm=Tpm,
         )
         machine_symbols = {m.name: m for m in self.machines}
+        tpm_symbols = {f"tpm_{m.name}": m.tpm for m in self.machines}
         # If there's exactly one machine, make it available under the name
         # "machine", even if it's not called that.
         if len(self.machines) == 1:
             (machine_symbols["machine"],) = self.machines
+            (tpm_symbols["tpm_machine"],) = self.tpms.values()
         vlan_symbols = {
             f"vlan{v.nr}": self.vlans[idx] for idx, v in enumerate(self.vlans)
         }
@@ -125,11 +154,13 @@ class Driver:
             "additionally exposed symbols:\n    "
             + ", ".join(map(lambda m: m.name, self.machines))
             + ",\n    "
+            + ", ".join(self.tpms.keys())
+            + ",\n    "
             + ", ".join(map(lambda v: f"vlan{v.nr}", self.vlans))
             + ",\n    "
             + ", ".join(list(general_symbols.keys()))
         )
-        return {**general_symbols, **machine_symbols, **vlan_symbols}
+        return {**general_symbols, **machine_symbols, **vlan_symbols, **tpm_symbols}
 
     def test_script(self) -> None:
         """Run the test script"""

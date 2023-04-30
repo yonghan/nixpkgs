@@ -3,6 +3,7 @@
 
 from test_driver.driver import Driver
 from test_driver.vlan import VLan
+from test_driver.tpm import Tpm
 from test_driver.machine import Machine
 from test_driver.logger import Logger
 from typing import Callable, Iterator, ContextManager, Optional, List, Dict, Any, Union

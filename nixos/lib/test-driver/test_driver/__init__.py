@@ -3,6 +3,7 @@ import argparse
 import ptpython.repl
 import os
 import time
+import json
 
 from test_driver.logger import rootlog
 from test_driver.driver import Driver
@@ -78,6 +79,13 @@ def main() -> None:
         help="vlans to span by the driver",
     )
     arg_parser.add_argument(
+        "--tpms",
+        metavar="TPMs",
+        action=EnvDefault,
+        envvar="tpms",
+        help="tpms blob to initialize by the driver (in JSON)",
+    )
+    arg_parser.add_argument(
         "-o",
         "--output_directory",
         help="""The path to the directory where outputs copied from the VM will be placed.
@@ -101,6 +109,7 @@ def main() -> None:
     with Driver(
         args.start_scripts,
         args.vlans,
+        json.loads(args.tpms),
         args.testscript.read_text(),
         args.output_directory.resolve(),
         args.keep_vm_state,
@@ -120,7 +129,7 @@ def generate_driver_symbols() -> None:
     in user's test scripts. That list is then used by pyflakes to lint those
     scripts.
     """
-    d = Driver([], [], "", Path())
+    d = Driver([], [], [], "", Path())
     test_symbols = d.test_symbols()
     with open("driver-symbols", "w") as fp:
         fp.write(",".join(test_symbols.keys()))

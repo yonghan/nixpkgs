@@ -14,6 +14,14 @@ let
 
   vlans = map (m: m.virtualisation.vlans) (lib.attrValues config.nodes);
   vms = map (m: m.system.build.vm) (lib.attrValues config.nodes);
+  tpms = map (n:
+  let m = config.nodes.${n};
+  in
+  {
+    swtpm_binary_path = "${lib.getExe m.virtualisation.tpm.package}";
+    socket_path = "${m.virtualisation.tpm.socketPath}";
+    machine_name = n;
+  }) (lib.attrNames config.nodes);
 
   nodeHostNames =
     let
@@ -31,6 +39,13 @@ let
   uniqueVlans = lib.unique (builtins.concatLists vlans);
   vlanNames = map (i: "vlan${toString i}: VLan;") uniqueVlans;
   machineNames = map (name: "${name}: Machine;") nodeHostNames;
+  tpmNames = map (name:
+    let
+      tpmConfig = config.nodes.${name}.virtualisation.tpm;
+    in
+    ''tpm_${name}: Tpm = Tpm(\"${lib.getExe tpmConfig.package}\", \"${tpmConfig.socketPath}\")''
+  ) (lib.attrNames config.nodes);
+
 
   withChecks =
     if lib.length invalidNodeNames > 0 then
@@ -70,6 +85,7 @@ let
           cat "${../test-script-prepend.py}" >> testScriptWithTypes
           echo "${builtins.toString machineNames}" >> testScriptWithTypes
           echo "${builtins.toString vlanNames}" >> testScriptWithTypes
+          echo "${builtins.toString tpmNames}" >> testScriptWithTypes
           echo -n "$testScript" >> testScriptWithTypes
 
           cat -n testScriptWithTypes
@@ -98,6 +114,7 @@ let
           --set startScripts "''${vmStartScripts[*]}" \
           --set testScript "$out/test-script" \
           --set vlans '${toString vlans}' \
+          --set tpms '${builtins.toJSON tpms}' \
           ${lib.escapeShellArgs (lib.concatMap (arg: ["--add-flags" arg]) config.extraDriverArgs)}
       '';
 
